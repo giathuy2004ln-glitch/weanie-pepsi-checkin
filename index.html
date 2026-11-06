@@ -12,13 +12,10 @@
 button,input{font:inherit}.shell{max-width:880px;margin:0 auto;padding:24px 18px 48px}
 .top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:24px}
 .brand{font-weight:850;letter-spacing:.02em;font-size:18px}.brand span{color:#6366f1}
-.userbar{font-size:13px;color:#64748b;display:flex;align-items:center;gap:10px}
 .panel{background:#fff;border:1px solid #e7eaf0;border-radius:20px;padding:clamp(20px,4vw,34px);box-shadow:0 10px 35px #1018280a}
 h1{font-size:clamp(25px,5vw,34px);margin:0 0 8px;letter-spacing:-.04em}
 .sub{margin:0;color:#64748b;line-height:1.55}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:22px 0}
-.stat{background:#f8fafc;border:1px solid #edf0f5;border-radius:14px;padding:15px}
-.stat b{display:block;font-size:25px;letter-spacing:-.04em}.stat span{font-size:12px;color:#64748b}
+
 label{display:block;font-size:14px;font-weight:700;margin:22px 0 9px}
 .searchrow{display:flex;gap:10px; position: relative;}
 .input-wrapper {position: relative; flex: 1; min-width: 0;}
@@ -46,8 +43,8 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .primary:hover{background:#4338ca}
 .primary:active{transform: scale(0.98);}
 .secondary{background:#eef2ff;color:#4338ca}
-.quiet{background:#f1f5f9;color:#475569;padding:9px 12px;font-size:12px}
 .hint{font-size:12px;color:#94a3b8;margin:8px 0 0}
+
 #result{margin-top:22px;display:none;border-radius:16px;padding:20px;border:1px solid transparent}
 #result.show{display:block; animation: fadeIn 0.3s ease;}
 @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
@@ -76,10 +73,6 @@ button:disabled{opacity:.55;cursor:not-allowed}
 @media(max-width:560px){
   .shell{padding:12px 10px 30px}
   .panel{border-radius:16px; padding: 20px 16px;}
-  .stats{gap:8px; margin: 16px 0;}
-  .stat{padding:12px 8px; border-radius: 12px;}
-  .stat b{font-size:22px}
-  .stat span{font-size:11px}
   .searchrow{flex-direction:column}
   .searchrow button{width:100%; padding: 16px;}
   input {padding: 16px;}
@@ -93,20 +86,16 @@ button:disabled{opacity:.55;cursor:not-allowed}
 </style>
 </head>
 <body>
-<main id="app" class="shell">
+<main id="app" class="shell hidden">
   <header class="top">
-    <div class="brand">WEANIE <span></span></div>
+    <div class="brand">WEANIE</span></div>
   </header>
   <section class="panel">
     <h1>CHECKIN VÉ PEPSI</h1>
-    <p class="sub">Nhập email đăng ký để kiểm tra thông tin và xác nhận phát vé.</p>
-    <!-- <div class="stats">
-      <div class="stat"><b id="totalPeople">—</b><span>Người đăng ký</span></div>
-      <div class="stat"><b id="totalTickets">—</b><span>Tổng số vé</span></div>
-      <div class="stat"><b id="checkedPeople">—</b><span>Đã check-in</span></div>
-    </div> -->
+    <p class="sub">Nhập email hoặc tên để kiểm tra thông tin và xác nhận phát vé.</p>
+    
     <form id="searchForm">
-      <label for="emailInput">Email đăng ký</label>
+      <label for="emailInput">Tìm kiếm khách hàng</label>
       <div class="searchrow">
         <div class="input-wrapper">
           <input id="emailInput" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Nhập tên hoặc email (vd: hieu)">
@@ -125,18 +114,19 @@ button:disabled{opacity:.55;cursor:not-allowed}
 const SUPABASE_URL = "https://bahwtchwhqjdnglmvctc.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_2LBPBfwyPSqWH8YVCh3B1g_85V43xGR";
 
-let db = null, currentEmail = null, currentUser = null, realtimeChannel = null;
+let db = null, currentEmail = null, realtimeChannel = null;
 const $ = id => document.getElementById(id);
 const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
-function showApp(){ $("app").classList.remove("hidden"); refreshStats(); subscribeRealtime(); }
+function showApp(){ 
+  $("app").classList.remove("hidden"); 
+  subscribeRealtime(); 
+}
 
-/* UI KẾT QUẢ ĐÃ ĐƯỢC THU GỌN THEO YÊU CẦU */
 function showResult(kind,title,desc,record=null,buttonMode=""){
   const box=$("result"); box.className="show "+kind;
   let details="";
   if(record){
-    // Lược bỏ dòng email và dòng trạng thái. Chỉ hiển thị Tên và Số vé.
     details=`<div class="details">
       <div class="detail"><small>Họ và tên người nhận</small><strong>${escapeHtml(record.full_name || "—")}</strong></div>
       <div class="detail ticket-highlight"><small>Số lượng vé cần phát</small><strong style="font-size:24px">${Number(record.ticket_count)} vé</strong></div>
@@ -156,14 +146,6 @@ function normalizeEmail(raw){
   return email;
 }
 
-async function refreshStats(){
-  const {data,error}=await db.rpc("get_checkin_stats");
-  if(error){console.error(error);return;}
-  $("totalPeople").textContent=data.total_people;
-  $("totalTickets").textContent=data.total_tickets;
-  $("checkedPeople").textContent=data.checked_in_people;
-}
-
 /* LOGIC AUTO-SUGGEST EMAIL */
 let suggestionTimeout = null;
 $("emailInput").addEventListener("input", (e) => {
@@ -178,7 +160,6 @@ $("emailInput").addEventListener("input", (e) => {
   }
   
   suggestionTimeout = setTimeout(async () => {
-    // Tìm email chứa chuỗi truy vấn (ilike), giới hạn 7 kết quả
     const { data, error } = await db.from("attendees").select("email").ilike("email", `%${query}%`).limit(7);
     
     if (error || !data || data.length === 0) {
@@ -193,22 +174,19 @@ $("emailInput").addEventListener("input", (e) => {
       li.addEventListener("click", () => {
         $("emailInput").value = item.email;
         list.classList.remove("show");
-        // Tự động submit sau khi chọn
         $("searchBtn").click(); 
       });
       list.appendChild(li);
     });
     list.classList.add("show");
-  }, 300); // 300ms debounce
+  }, 300); 
 });
 
-// Ẩn dropdown khi click ra ngoài
 document.addEventListener("click", (e) => {
   if (!e.target.closest('.input-wrapper')) {
     $("suggestionsList").classList.remove("show");
   }
 });
-
 
 async function lookupEmail(email){
   currentEmail=email;
@@ -230,7 +208,6 @@ async function doCheckin(){
   const {data,error}=await db.rpc("check_in_by_email",{p_email:currentEmail});
   if(error){btn.disabled=false;btn.textContent="THỬ LẠI";showResult("danger","Lỗi hệ thống","Vui lòng thử lại: "+error.message);return;}
   
-  await refreshStats();
   if(data.status==="checked_in"){
     showResult("success","ĐÃ GHI NHẬN THÀNH CÔNG","Hệ thống đã lưu trạng thái phát "+data.ticket_count+" vé.",data,"checked");
   }else if(data.status==="already_checked_in"){
@@ -257,7 +234,6 @@ $("searchForm").addEventListener("submit",async e=>{
 function subscribeRealtime(){
   if(realtimeChannel) db.removeChannel(realtimeChannel);
   realtimeChannel=db.channel("checkin-live").on("postgres_changes",{event:"*",schema:"public",table:"attendees"},async payload=>{
-    await refreshStats();
     if(currentEmail && payload.new && payload.new.email===currentEmail) await lookupEmail(currentEmail);
   }).subscribe();
 }
